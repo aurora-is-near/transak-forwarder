@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
   const fiatCurrency = searchParams.get("fiatCurrency")
   const defaultFiatAmount = searchParams.get("defaultFiatAmount")
   const defaultCryptoAmount = searchParams.get("defaultCryptoAmount")
+  const environment = searchParams.get("environment")
 
   if (!apiKey) {
     return missingParameterResponse("apiKey")
@@ -83,6 +84,10 @@ export async function GET(req: NextRequest) {
 
   if (defaultCryptoAmount) {
     url.searchParams.set("defaultCryptoAmount", defaultCryptoAmount)
+  }
+
+  if (environment) {
+    url.searchParams.set("environment", environment)
   }
 
   return NextResponse.redirect(url.href)
