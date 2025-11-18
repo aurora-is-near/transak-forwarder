@@ -1,5 +1,5 @@
 import { getAddress } from "ethers";
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { forwarderApiClient } from "@/forwarder-api-client";
 
 const getForwarderAddress = async (
@@ -45,9 +45,15 @@ export async function GET(req: NextRequest) {
   const defaultFiatAmount = searchParams.get("defaultFiatAmount");
   const defaultCryptoAmount = searchParams.get("defaultCryptoAmount");
   const environment = searchParams.get("environment");
+  const referrerDomain = req.headers.get("referer")?.split("/")[2];
 
   if (!apiKey) {
     return missingParameterResponse("apiKey");
+  }
+  if (!referrerDomain) {
+    return new NextResponse("The `referrerDomain` header is required", {
+      status: 400,
+    });
   }
 
   if (!walletAddress) {
@@ -67,6 +73,7 @@ export async function GET(req: NextRequest) {
 
   url.searchParams.set("network", "near");
   url.searchParams.set("apiKey", apiKey);
+  url.searchParams.set("referrerDomain", referrerDomain);
   url.searchParams.set("disableWalletAddressForm", "true");
   url.searchParams.set(
     "walletAddress",
