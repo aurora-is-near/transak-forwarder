@@ -1,6 +1,9 @@
 import { getAddress } from "ethers"
 import { NextRequest, NextResponse } from "next/server"
 import { forwarderApiClient } from "@/forwarder-api-client"
+import { refreshTransakToken } from "@/actions/refresh-transak-token"
+import { getAccessToken } from "@/actions/get-access-token"
+import { createTransakSession } from "@/actions/create-transak-session"
 
 const getForwarderAddress = async (
   targetAddress: string,
@@ -34,27 +37,27 @@ const missingParameterResponse = (parameterName: string) =>
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
 
-  // Required query parameters
   const apiKey = searchParams.get("apiKey")
+  const apiSecret = searchParams.get("apiSecret")
+
+  // Required query parameters
+  // const apiKey = searchParams.get("apiKey")
   const walletAddress = searchParams.get("walletAddress")
   const siloEngineAccountId = searchParams.get("silo")
 
   // Optional query parameters
-  const fiatAmount = searchParams.get("fiatAmount")
-  const fiatCurrency = searchParams.get("fiatCurrency")
-  const defaultFiatAmount = searchParams.get("defaultFiatAmount")
-  const defaultCryptoAmount = searchParams.get("defaultCryptoAmount")
-  const environment = searchParams.get("environment")
-  const referrerDomain = req.headers.get("referer")?.split("/")[2]
+  const fiatAmount = searchParams.get("fiatAmount") || "50"
+  const fiatCurrency = searchParams.get("fiatCurrency") || "EUR"
+  const defaultFiatAmount = searchParams.get("defaultFiatAmount") || "0"
+  const defaultCryptoAmount = searchParams.get("defaultCryptoAmount") || "0"
+  const cryptoCurrencyCode = searchParams.get("cryptoCurrencyCode") || "NEAR"
+  const environment = searchParams.get("environment") || "staging"
 
   if (!apiKey) {
     return missingParameterResponse("apiKey")
   }
-
-  if (!referrerDomain) {
-    return new NextResponse("The `referrerDomain` header is required", {
-      status: 400,
-    });
+  if (!apiSecret) {
+    return missingParameterResponse("apiSecret")
   }
 
   if (!walletAddress) {
@@ -66,40 +69,40 @@ export async function GET(req: NextRequest) {
   }
 
   const targetAddress = getAddress(walletAddress)
+  const forwarderAddress = await getForwarderAddress(targetAddress, siloEngineAccountId)
 
-  const url =
-    environment === "production"
-      ? new URL("https://api-gateway.transak.com/")
-      : new URL("https://api-gateway-stg.transak.com/")
 
-  url.searchParams.set("network", "near")
-  url.searchParams.set("apiKey", apiKey)
-  url.searchParams.set("referrerDomain", referrerDomain)
-  url.searchParams.set("disableWalletAddressForm", "true")
-  url.searchParams.set(
-    "walletAddress",
-    await getForwarderAddress(targetAddress, siloEngineAccountId),
-  )
 
-  if (fiatAmount) {
-    url.searchParams.set("fiatAmount", fiatAmount)
+  const savedAccessToken = await getAccessToken(apiKey)
+
+  const accessToken = 
+    savedAccessToken ?? 
+    await refreshTransakToken(apiSecret, environment, apiKey)
+
+  const body = {
+    "widgetParams": {
+      "apiKey": apiKey,
+      "referrerDomain": "auroracloud.dev",
+      "fiatAmount": fiatAmount,
+      "defaultFiatAmount": defaultFiatAmount,
+      "defaultCryptoAmount": defaultCryptoAmount,
+      "fiatCurrency": fiatCurrency,
+      "cryptoCurrencyCode": cryptoCurrencyCode,
+      "walletAddress": forwarderAddress,
+    },
+  }
+ 
+  const widgetUrl = await createTransakSession(environment, body, accessToken)
+
+  if (!widgetUrl) {
+    return new NextResponse("Failed to create Transak session", { status: 500 })
   }
 
-  if (fiatCurrency) {
-    url.searchParams.set("fiatCurrency", fiatCurrency)
+  if (req.method === "POST") {
+    return NextResponse.json({ widgetUrl })
   }
 
-  if (defaultFiatAmount) {
-    url.searchParams.set("defaultFiatAmount", defaultFiatAmount)
-  }
-
-  if (defaultCryptoAmount) {
-    url.searchParams.set("defaultCryptoAmount", defaultCryptoAmount)
-  }
-
-  if (environment) {
-    url.searchParams.set("environment", environment)
-  }
+  const url = new URL(widgetUrl)
 
   return NextResponse.redirect(url.href)
 }
