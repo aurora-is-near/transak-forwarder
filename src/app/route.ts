@@ -34,22 +34,42 @@ const missingParameterResponse = (parameterName: string) =>
     status: 400,
   })
 
-export async function GET(req: NextRequest) {
+const readFromBodyOrQueryParams = (
+  req: NextRequest, 
+  body: Record<string, string> | null, 
+  parameterName: string
+): string | null => {
   const { searchParams } = req.nextUrl
+  const value = (body && body[parameterName]) || searchParams.get(parameterName)
+  if (!value) {
+    return null
+  }
+  return value
+}
+
+export async function handleRequest(req: NextRequest) {
+  let body = null
+  try {
+    if (req.method === "POST") {
+      body = await req.json()
+    }
+  } catch {
+    // Ignore JSON parsing errors (e.g. empty body)
+  }
 
   // Required query parameters
-  const apiKey = searchParams.get("apiKey")
-  const apiSecret = searchParams.get("apiSecret")
-  const walletAddress = searchParams.get("walletAddress")
-  const siloEngineAccountId = searchParams.get("silo")
+  const apiKey = await readFromBodyOrQueryParams(req, body, "apiKey")
+  const apiSecret = await readFromBodyOrQueryParams(req, body, "apiSecret")
+  const walletAddress = await readFromBodyOrQueryParams(req, body, "walletAddress")
+  const siloEngineAccountId = await readFromBodyOrQueryParams(req, body, "silo")
 
   // Optional query parameters
-  const fiatAmount = searchParams.get("fiatAmount") || "50"
-  const fiatCurrency = searchParams.get("fiatCurrency") || "EUR"
-  const defaultFiatAmount = searchParams.get("defaultFiatAmount") || "0"
-  const defaultCryptoAmount = searchParams.get("defaultCryptoAmount") || "0"
-  const cryptoCurrencyCode = searchParams.get("cryptoCurrencyCode") || "NEAR"
-  const environment = searchParams.get("environment") || "staging"
+  const fiatAmount = await readFromBodyOrQueryParams(req, body, "fiatAmount") || "50"
+  const fiatCurrency = await readFromBodyOrQueryParams(req, body, "fiatCurrency") || "EUR"
+  const defaultFiatAmount = await readFromBodyOrQueryParams(req, body, "defaultFiatAmount") || "0"
+  const defaultCryptoAmount = await readFromBodyOrQueryParams(req, body, "defaultCryptoAmount") || "0"
+  const cryptoCurrencyCode = await readFromBodyOrQueryParams(req, body, "cryptoCurrencyCode") || "NEAR"
+  const environment = await readFromBodyOrQueryParams(req, body, "environment") || "staging"
 
   if (!apiKey) {
     return missingParameterResponse("apiKey")
@@ -57,11 +77,9 @@ export async function GET(req: NextRequest) {
   if (!apiSecret) {
     return missingParameterResponse("apiSecret")
   }
-
   if (!walletAddress) {
     return missingParameterResponse("walletAddress")
   }
-
   if (!siloEngineAccountId) {
     return missingParameterResponse("silo")
   }
@@ -79,7 +97,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Failed to obtain access token", { status: 401 })
   }
 
-  const body = {
+  const widgetRequestData = {
     "widgetParams": {
       "apiKey": apiKey,
       "referrerDomain": "auroracloud.dev",
@@ -92,17 +110,21 @@ export async function GET(req: NextRequest) {
     },
   }
  
-  const widgetUrl = await createTransakSession(environment, body, accessToken)
+  const widgetUrl = await createTransakSession(environment, widgetRequestData, accessToken)
 
   if (!widgetUrl) {
     return new NextResponse("Failed to create Transak session", { status: 500 })
   }
 
+  // If it is a POST request, return JSON
   if (req.method === "POST") {
     return NextResponse.json({ widgetUrl })
   }
 
+  // If it is a GET request, redirect
   const url = new URL(widgetUrl)
 
   return NextResponse.redirect(url.href)
 }
+
+export { handleRequest as GET, handleRequest as POST }
