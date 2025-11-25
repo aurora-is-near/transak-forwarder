@@ -37,11 +37,9 @@ const missingParameterResponse = (parameterName: string) =>
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
 
+  // Required query parameters
   const apiKey = searchParams.get("apiKey")
   const apiSecret = searchParams.get("apiSecret")
-
-  // Required query parameters
-  // const apiKey = searchParams.get("apiKey")
   const walletAddress = searchParams.get("walletAddress")
   const siloEngineAccountId = searchParams.get("silo")
 
@@ -71,13 +69,15 @@ export async function GET(req: NextRequest) {
   const targetAddress = getAddress(walletAddress)
   const forwarderAddress = await getForwarderAddress(targetAddress, siloEngineAccountId)
 
-
-
   const savedAccessToken = await getAccessToken(apiKey)
 
   const accessToken = 
     savedAccessToken ?? 
     await refreshTransakToken(apiSecret, environment, apiKey)
+      
+  if (!accessToken) {
+    return new NextResponse("Failed to obtain access token", { status: 401 })
+  }
 
   const body = {
     "widgetParams": {

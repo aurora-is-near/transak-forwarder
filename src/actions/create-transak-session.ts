@@ -16,26 +16,35 @@ export const createTransakSession = async (
   body: WidgetSessionBody, 
   accessToken: string
 ) => {
-  const baseUrl =
-    environment === "production"
-      ? "https://api-gateway.transak.com"
-      : "https://api-gateway-stg.transak.com"
+  try {
+    const baseUrl =
+      environment === "production"
+        ? "https://api-gateway.transak.com"
+        : "https://api-gateway-stg.transak.com"
 
-  const sessionResponse = await fetch(`${baseUrl}/api/v2/auth/session`, {
-    method: "POST",
-    headers: {
-      "accept": "application/json",
-      "access-token": accessToken || "",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  })
+    const sessionResponse = await fetch(`${baseUrl}/api/v2/auth/session`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "access-token": accessToken,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    })
 
-  if (!sessionResponse.ok) {
-    console.error(`Failed to create Transak session: ${sessionResponse.status}`)
+    if (!sessionResponse.ok) {
+      console.error(`Failed to create Transak session: ${sessionResponse.status}`)
+    }
+
+    const sessionData = await sessionResponse.json()
+    
+    if (!sessionData?.data?.widgetUrl) {
+      throw new Error("Invalid session response: missing widgetUrl")
+    }
+
+    return sessionData.data.widgetUrl
+  } catch (error) {
+    console.error("Unexpected error creating Transak session:", error)
+    return null
   }
-  
-  const sessionData = await sessionResponse.json()
-
-  return sessionData.data.widgetUrl
 }
