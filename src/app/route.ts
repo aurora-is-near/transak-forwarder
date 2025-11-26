@@ -47,7 +47,7 @@ const readFromBodyOrQueryParams = (
   return value
 }
 
-export async function handleRequest(req: NextRequest) {
+async function handleRequest(req: NextRequest) {
   let body = null
   try {
     if (req.method === "POST") {
