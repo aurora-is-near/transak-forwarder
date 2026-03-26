@@ -1,28 +1,29 @@
-import { createServerSupabaseClient } from "@/lib/supabase";
+import { getPool } from "@/lib/db"
 
 export const getAccessToken = async (apiKey: string) => {
   try {
-    const supabase = createServerSupabaseClient();
+    const pool = getPool()
+    const since = new Date(
+      Date.now() - 7 * 24 * 60 * 60 * 1000
+    ).toISOString()
 
-    const { data, error } = await supabase
-      .from("access_tokens")
-      .select("*")
-      .gte(
-        "created_at",
-        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      ) // 7 days
-      .eq("api_key", apiKey)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    const result = await pool.query<{ access_token: string }>(
+      `SELECT access_token
+       FROM access_tokens
+       WHERE api_key = $1 AND created_at >= $2::timestamptz
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [apiKey, since]
+    )
 
-    if (error || !data?.access_token) {
-      return null;
+    const token = result.rows[0]?.access_token
+    if (!token) {
+      return null
     }
 
-    return data.access_token;
+    return token
   } catch (error) {
-    console.error("Unexpected error retrieving access token:", error);
-    return null;
+    console.error("Unexpected error retrieving access token:", error)
+    return null
   }
-};
+}

@@ -44,7 +44,7 @@ Create a local environment variables file:
 cp .env.local.template .env.local
 ```
 
-Fill in the `FORWARDER_API_KEY`, then run the development server:
+Fill in `FORWARDER_API_KEY` and `DATABASE_URL`, then run the development server:
 
 ```bash
 yarn dev
